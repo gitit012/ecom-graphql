@@ -60,5 +60,25 @@ export const resolvers = {
                 throw new Error(`Failed to create order: ${error.message}`);
         }    
 
+    },
+        createOrderByProductName: async(_:any,args:any) =>{
+            try{
+                const user = await AppDataSource.getRepository(User).findOneBy({user_id:args.user_id});
+                if (!user) throw new Error("User not found");
+
+                const product = await AppDataSource.getRepository(Product).findOneBy({product_name:args.product_name})
+                if (!product) throw new Error("Product not found");
+                
+                const order = AppDataSource.getRepository(Order).create({
+                    user,
+                    product_ordered: product,
+                    total_paid: args.total_paid
+                })
+
+                return await AppDataSource.getRepository(Order).save(order);
+            } catch (error) {
+                throw new Error(`Failed to create order: ${error.message}`);
+        }    
+
     }
 }}
