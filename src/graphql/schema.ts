@@ -39,5 +39,6 @@ export const schema = buildSchema(`#graphql
         createProduct(product_name: String!, description: String!, price: Int!): Product
         createOrder(user_id: ID!, product_id: ID!, total_paid: Int!): Order
         createOrderByProductName(user_id: ID!, product_name: String!, total_paid: Int!) : Order
+        DeleteUser(user_id: ID!) : String
     }
     `);

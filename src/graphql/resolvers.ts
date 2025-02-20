@@ -2,6 +2,7 @@ import {AppDataSource} from "../data-source"
 import { User } from "../entities/User"
 import { Product } from "../entities/Product";
 import { Order } from "../entities/Order";
+import { error } from "console";
 
 export const resolvers = {
     Query:{
@@ -67,9 +68,8 @@ export const resolvers = {
                 return await AppDataSource.getRepository(Order).save(order);
             } catch (error) {
                 throw new Error(`Failed to create order: ${error.message}`);
-        }    
-
-    },
+            }    
+        },
         createOrderByProductName: async(_:any,args:any) =>{
             try{
                 const user = await AppDataSource.getRepository(User).findOneBy({user_id:args.user_id});
@@ -87,7 +87,22 @@ export const resolvers = {
                 return await AppDataSource.getRepository(Order).save(order);
             } catch (error) {
                 throw new Error(`Failed to create order: ${error.message}`);
-        }    
+            }
+        },
+        DeleteUser: async(_:any, args:any) =>{
+            try{
+                const userRepo = AppDataSource.getRepository(User)
+                const orderRepo = AppDataSource.getRepository(Order)
 
-    }
+                const user = await userRepo.findOne({where: {user_id:args.user_id}})
+                if (!user) throw new Error("User not found");
+
+                await orderRepo.delete({user: {user_id:args.user_id}})
+                await userRepo.delete({user_id:args.user_id})
+                return "user and orders deleted";
+            } catch(error){
+                throw new Error(`Failed to delete ${error.message}`)
+            }
+            
+        }
 }}
