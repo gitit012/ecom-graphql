@@ -2,7 +2,7 @@ import {AppDataSource} from "../data-source"
 import { User } from "../entities/User"
 import { Product } from "../entities/Product";
 import { Order } from "../entities/Order";
-import { error } from "console";
+import { In } from "typeorm";
 
 export const resolvers = {
     Query:{
@@ -19,18 +19,18 @@ export const resolvers = {
             return await AppDataSource.getRepository(Product).findOneBy({product_id:args.product_id})
         },
         getOrders: async()=>{
-            return await AppDataSource.getRepository(Order).find({relations: ["user","product_ordered"]})
+            return await AppDataSource.getRepository(Order).find({relations: ["user","products_ordered"]})
         },
         getOrdersByUser: async(_:any, args: {user_id:string})=>{
             return await AppDataSource.getRepository(Order).find({
                 where: {user: {user_id:args.user_id}},
-                relations: ["user", "product_ordered"]
+                relations: ["user", "products_ordered"]
             })
         },
         getOrdersByProduct: async(_:any, args:{product_id:string})=>{
             return await AppDataSource.getRepository(Order).find({
-                where: {product_ordered: {product_id: args.product_id}},
-                relations: ["user", "product_ordered"]
+                where: {products_ordered: {product_id: args.product_id}},
+                relations: ["user", "products_ordered"]
             })
         },
         getTotalBillByUser: async(_:any, args:{user_id:string})=>{
@@ -52,18 +52,23 @@ export const resolvers = {
             const product = AppDataSource.getRepository(Product).create(args);
             return await AppDataSource.getRepository(Product).save(product);
         },
-        createOrder: async(_:any,args:any) =>{
+        createOrder: async(_:any,args:{user_id: string; product_ids: string[]; total_paid: number}) =>{
             try{
                 const user = await AppDataSource.getRepository(User).findOneBy({user_id:args.user_id});
-                const product = await AppDataSource.getRepository(Product).findOneBy({product_id:args.product_id});
+                if (!user) throw new Error("User not found");
 
-                if (!user || !product) throw new Error("User or Product not found");
-                
+                const products = await AppDataSource.getRepository(Product).find({
+                    where: {product_id: In(args.product_ids)}
+                });
+
+                if (products.length !== args.product_ids.length) {
+                    throw new Error("User or Product not found");
+                }
                 const order = AppDataSource.getRepository(Order).create({
                     user,
-                    product_ordered: product,
+                    products_ordered: products,
                     total_paid: args.total_paid
-                })
+                });
 
                 return await AppDataSource.getRepository(Order).save(order);
             } catch (error) {
@@ -75,12 +80,17 @@ export const resolvers = {
                 const user = await AppDataSource.getRepository(User).findOneBy({user_id:args.user_id});
                 if (!user) throw new Error("User not found");
 
-                const product = await AppDataSource.getRepository(Product).findOneBy({product_name:args.product_name})
-                if (!product) throw new Error("Product not found");
+                const products = await AppDataSource.getRepository(Product).find({
+                    where: {product_name: In(args.product_name)}
+                })
+                
+                if (products.length !== args.product_ids.length) {
+                    throw new Error("one or more products not found");
+                }
                 
                 const order = AppDataSource.getRepository(Order).create({
                     user,
-                    product_ordered: product,
+                    products_ordered: products,
                     total_paid: args.total_paid
                 })
 

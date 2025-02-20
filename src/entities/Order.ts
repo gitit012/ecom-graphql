@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, ManyToMany, JoinTable } from "typeorm";
 import {User} from "./User"
 import {Product} from "./Product"
 
@@ -7,13 +7,13 @@ export class Order{
     @PrimaryGeneratedColumn("uuid")
     order_id!: string;
 
-    @ManyToOne(() => User)
+    @ManyToOne(() => User, (user)=>user.orders,{onDelete: "CASCADE"})
     @JoinColumn({ name: "user_id" })
     user!: User;
     
-    @ManyToOne(() => Product)
-    @JoinColumn({ name: "product_id" })
-    product_ordered!: Product;
+    @ManyToMany(() => Product)
+    @JoinTable()
+    products_ordered!: Product[];
 
     @Column("int")
     total_paid!: number;
