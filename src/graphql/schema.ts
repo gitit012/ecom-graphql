@@ -31,6 +31,7 @@ export const schema = buildSchema(`#graphql
         getOrders: [Order]
         getOrdersByUser(user_id: ID!): [Order]
         getOrdersByProduct(product_id: ID!): [Order]
+        getTotalBillByUser(user_id:ID!): Float
     }
 
     type Mutation{

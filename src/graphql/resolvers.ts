@@ -31,6 +31,15 @@ export const resolvers = {
                 where: {product_ordered: {product_id: args.product_id}},
                 relations: ["user", "product_ordered"]
             })
+        },
+        getTotalBillByUser: async(_:any, args:{user_id:string})=>{
+            const bill = await AppDataSource.getRepository(Order)
+                .createQueryBuilder("order")
+                .select("SUM(order.total_paid)", "total")
+                .innerJoin("order.user", "user")
+                .where("user.user_id = :user_id", {user_id:args.user_id})
+                .getRawOne()
+            return bill?.total || 0;
         }
     },
     Mutation:{
