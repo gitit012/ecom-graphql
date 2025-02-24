@@ -16,11 +16,21 @@ export const schema = buildSchema(`#graphql
         price: Int!
     }
 
+    type OrderItem{
+        product: Product!
+        quantity: Int!
+    }
+
     type Order {
         order_id: ID!
         user: User!
-        products_ordered: [Product]!
+        items: [OrderItem!]!
         total_paid: Int!
+    }
+
+    input OrderItemInput {
+        product_id: ID!
+        quantity: Int!
     }
 
     type Query{
@@ -37,8 +47,8 @@ export const schema = buildSchema(`#graphql
     type Mutation{
         createUser(first_name: String!, last_name: String!, address: String!, email: String!) :User
         createProduct(product_name: String!, description: String!, price: Int!): Product
-        createOrder(user_id: ID!, product_ids: [ID!]!, total_paid: Int!): Order
-        createOrderByProductName(user_id: ID!, product_name: String!, total_paid: Int!) : Order
+        createOrder(user_id: ID!, items: [OrderItemInput!]!): Order
+        createOrderByProductName(user_id: ID!, product_name: String!, quantity: Int!) : Order
         DeleteUser(user_id: ID!) : String
     }
     `);

@@ -20,19 +20,22 @@ export const resolvers = {
             return await AppDataSource.getRepository(Product).findOneBy({product_id:args.product_id})
         },
         getOrders: async()=>{
-            return await AppDataSource.getRepository(Order).find({relations: ["user","products_ordered"]})
+            return await AppDataSource.getRepository(Order).find({
+                relations: ["user","items", "items.product"]})
         },
         getOrdersByUser: async(_:any, args: {user_id:string})=>{
             return await AppDataSource.getRepository(Order).find({
                 where: {user: {user_id:args.user_id}},
-                relations: ["user", "products_ordered"]
+                relations: ["user","items", "items.product"]
             })
         },
         getOrdersByProduct: async(_:any, args:{product_id:string})=>{
-            return await AppDataSource.getRepository(Order).find({
-                where: {products_ordered: {product_id: args.product_id}},
-                relations: ["user", "products_ordered"]
-            })
+            return await AppDataSource.getRepository(Order)
+                .createQueryBuilder("order")
+                .innerJoinAndSelect("order.items", "item")
+                .innerJoinAndSelect("item.product", "product")
+                .where("product.product_id = :productId", {productId: args.product_id})
+                .getMany();    
         },
         getTotalBillByUser: async(_:any, args:{user_id:string})=>{
             const bill = await AppDataSource.getRepository(Order)
@@ -56,83 +59,131 @@ export const resolvers = {
         createOrder: async(_:any,args:{
             user_id: string;
             items: {product_id: string; quantity: number}[];
-            total_paid: number 
         }) =>{
+            const queryRunner = AppDataSource.createQueryRunner();
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+
             try{
-                const user = await AppDataSource.getRepository(User).findOneBy({user_id:args.user_id});
+                const user = await queryRunner.manager.findOne(User,{where: {user_id:args.user_id}})
                 if (!user) throw new Error("User not found");
 
-                const OrderProducts = await Promise.all(
+                const orderProducts = await Promise.all(
                     args.items.map(async (item) =>{
-                        const product = AppDataSource.getRepository(Product).findOneBy({
-                            product_id: item.product_id
-                        });
+                        const product = await queryRunner.manager.findOne(Product,{where: {product_id: item.product_id}});
                         if (!product) throw new Error(`Product ${item.product_id} not found`);
 
-                        const OrderProduct = new OrderProduct();
-                        OrderProduct.product = product;
-                        OrderProduct.quantity = item.quantity;
+                        const orderProduct = new OrderProduct();
+                        orderProduct.product = product;
+                        orderProduct.quantity = item.quantity;
                         return orderProduct;
-
                     })
-                )
-                
-                AppDataSource.getRepository(Product).find({
-                    where: {product_id: In(args.product_ids)}
-                });
+                );
 
-                if (products.length !== args.product_ids.length) {
-                    throw new Error("User or Product not found");
-                }
-                const order = AppDataSource.getRepository(Order).create({
-                    user,
-                    products_ordered: products,
-                    total_paid: args.total_paid
-                });
+                //calc total
+                const total = orderProducts.reduce(
+                    (sum,item) => sum +(item.product.price* item.quantity),0);
 
-                return await AppDataSource.getRepository(Order).save(order);
-            } catch (error) {
-                throw new Error(`Failed to create order: ${error.message}`);
-            }    
-        },
-        createOrderByProductName: async(_:any,args:any) =>{
-            try{
-                const user = await AppDataSource.getRepository(User).findOneBy({user_id:args.user_id});
-                if (!user) throw new Error("User not found");
+                const order = new Order();
+                order.user = user
+                order.items = orderProducts;
+                order.total_paid = total;
 
-                const products = await AppDataSource.getRepository(Product).find({
-                    where: {product_name: In(args.product_name)}
-                })
-                
-                if (products.length !== args.product_ids.length) {
-                    throw new Error("one or more products not found");
-                }
-                
-                const order = AppDataSource.getRepository(Order).create({
-                    user,
-                    products_ordered: products,
-                    total_paid: args.total_paid
-                })
+                const savedOrder = await queryRunner.manager.save(order)
 
-                return await AppDataSource.getRepository(Order).save(order);
-            } catch (error) {
-                throw new Error(`Failed to create order: ${error.message}`);
-            }
-        },
-        DeleteUser: async(_:any, args:any) =>{
-            try{
-                const userRepo = AppDataSource.getRepository(User)
-                const orderRepo = AppDataSource.getRepository(Order)
-
-                const user = await userRepo.findOne({where: {user_id:args.user_id}})
-                if (!user) throw new Error("User not found");
-
-                await orderRepo.delete({user: {user_id:args.user_id}})
-                await userRepo.delete({user_id:args.user_id})
-                return "user and orders deleted";
+                await queryRunner.commitTransaction();
+                return savedOrder;
             } catch(error){
-                throw new Error(`Failed to delete ${error.message}`)
+                await queryRunner.rollbackTransaction();
+                throw new Error (`Faile to create order :${error.message}`);
+            } finally{
+                await queryRunner.release();
             }
+        },
+
+        createOrderByProductName: async(_:any,args:{
+            user_id: string;
+            product_name: string;
+            quantity:number;
+        }) =>{
+            const queryRunner = AppDataSource.createQueryRunner();
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+
+            try{
+                const user = await queryRunner.manager.findOne(User,{where: {user_id:args.user_id}})
+                if (!user) throw new Error("User not found");
+
+                const product = await queryRunner.manager.findOne(Product, {
+                    where: { product_name: args.product_name }
+                });
+                if (!product) throw new Error("Product not found");
+                
+                const orderProduct = new OrderProduct();
+                orderProduct.product = product;
+                orderProduct.quantity = args.quantity;
             
+                // Calculate total
+                const total = product.price * args.quantity;
+
+                const order = new Order();
+                order.user = user;
+                order.items = [orderProduct];
+                order.total_paid = total;
+
+                const saveOrder = await queryRunner.manager.save(order);
+                await queryRunner.commitTransaction();
+                return saveOrder;
+            } catch (error) {
+                throw new Error(`Failed to create order: ${error.message}`);
+            } finally{
+                await queryRunner.release();
+            }
+        },
+        DeleteUser: async (_: any, args: any) => {
+            const queryRunner = AppDataSource.createQueryRunner();
+            await queryRunner.connect();
+            await queryRunner.startTransaction();
+
+            try {
+                const user = await queryRunner.manager.findOne(User, {where: { user_id: args.user_id }});
+                if (!user) throw new Error("User not found");
+
+                await queryRunner.manager.delete(Order, { user: { user_id: args.user_id } });
+                await queryRunner.manager.delete(User, { user_id: args.user_id });
+                await queryRunner.commitTransaction();
+                return "User and orders deleted";
+            } catch (error) {
+                await queryRunner.rollbackTransaction();
+                throw new Error(`Failed to delete: ${error.message}`);
+            } finally {
+                await queryRunner.release();
+            }
         }
-}}
+    },
+        Order: {
+            items: async (parent: Order) => {
+                // If items are not loaded, fetch them
+                if (!parent.items) {
+                    const order = await AppDataSource.getRepository(Order).findOne({
+                        where: { order_id: parent.order_id },
+                        relations: ["items", "items.product"]
+                    });
+                    return order?.items || [];
+                }
+                return parent.items;
+            }
+        },
+    
+        OrderItem: {
+            product: async (parent: OrderProduct) => {
+                // If product is not loaded, fetch it
+                if (!parent.product) {
+                    return await AppDataSource.getRepository(Product).findOneBy({
+                        product_id: parent.product.product_id
+                    });
+                }
+                return parent.product;
+            }
+        }
+};
