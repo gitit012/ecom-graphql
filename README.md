@@ -1,6 +1,6 @@
 # Awesome Project Build with TypeORM
 
-*The branch `testing` is where i uploaded my latest version of the code, but it is unfinished and will not work. Below are the steps to run the main branch which works*
+*The branch `mostly working` is where i uploaded my latest version of the code, but it is unfinished and may not work. Below are the steps to run the main branch which works*
 
 Steps to run this project:
 
