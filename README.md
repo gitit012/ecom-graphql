@@ -1,5 +1,8 @@
 # Awesome Project Build with TypeORM
 
+*Currently testing out some code which is in the branch testing and it may not work*
+*Below are the steps to run the main branch which works*
+
 Steps to run this project:
 
 0. Do `npm install`
@@ -15,3 +18,15 @@ Steps to run this project:
 4. Now do `npm start` to create the tables inside postgres
 
 5. Fianlly to start the server, do `ts-node src/server.ts` inside the terminal.
+
+6. To try out Graphql, here is a command to fetch all users
+
+"query{
+  getUsers {
+    user_id
+    first_name
+    last_name
+    address
+    email
+  }
+}"
