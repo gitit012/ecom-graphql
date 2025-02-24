@@ -12,9 +12,9 @@ export class Order{
     @JoinColumn({ name: "user_id" })
     user!: User;
     
-    @ManyToMany(() => Product)
-    @JoinTable()
-    products_ordered!: Product[];
+    // @ManyToMany(() => Product)
+    // @JoinTable()
+    // products_ordered!: Product[];
 
     @OneToMany(()=> OrderProduct, item=>item.order, {cascade: true}) 
     items: OrderProduct[];

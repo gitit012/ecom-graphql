@@ -6,7 +6,7 @@
       "test": "echo \"Error: no test specified\" && exit 1",
       "start": "ts-node src/index.ts",
       "typeorm": "typeorm-ts-node-commonjs",
-      "generate": "ts-node ./node_modules/typeorm/cli.js migration:generate PostRefactoring -d src/data-source.ts"
+      "generate": "ts-node ./node_modules/typeorm/cli.js migration:generate src/migrations/PostRefactoring -d src/data-source.ts"
    },
    "keywords": [],
    "author": "",
