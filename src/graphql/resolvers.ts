@@ -3,6 +3,7 @@ import { User } from "../entities/User"
 import { Product } from "../entities/Product";
 import { Order } from "../entities/Order";
 import { In } from "typeorm";
+import { OrderProduct } from "../entities/OrderProduct";
 
 export const resolvers = {
     Query:{
@@ -52,12 +53,31 @@ export const resolvers = {
             const product = AppDataSource.getRepository(Product).create(args);
             return await AppDataSource.getRepository(Product).save(product);
         },
-        createOrder: async(_:any,args:{user_id: string; product_ids: string[]; total_paid: number}) =>{
+        createOrder: async(_:any,args:{
+            user_id: string;
+            items: {product_id: string; quantity: number}[];
+            total_paid: number 
+        }) =>{
             try{
                 const user = await AppDataSource.getRepository(User).findOneBy({user_id:args.user_id});
                 if (!user) throw new Error("User not found");
 
-                const products = await AppDataSource.getRepository(Product).find({
+                const OrderProducts = await Promise.all(
+                    args.items.map(async (item) =>{
+                        const product = AppDataSource.getRepository(Product).findOneBy({
+                            product_id: item.product_id
+                        });
+                        if (!product) throw new Error(`Product ${item.product_id} not found`);
+
+                        const OrderProduct = new OrderProduct();
+                        OrderProduct.product = product;
+                        OrderProduct.quantity = item.quantity;
+                        return orderProduct;
+
+                    })
+                )
+                
+                AppDataSource.getRepository(Product).find({
                     where: {product_id: In(args.product_ids)}
                 });
 
