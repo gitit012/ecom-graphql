@@ -55,13 +55,11 @@ export const resolvers = {
         createProduct: async (_: any, args: { product_name: string; description: string; price: number }) => {
             const productRepository = AppDataSource.getRepository(Product);
         
-            // check if a product with the same name already exists
             const existingProduct = await productRepository.findOneBy({ product_name: args.product_name });
             if (existingProduct) {
                 throw new Error(`Product with name "${args.product_name}" already exists.`);
             }
         
-            // Create new product
             const product = productRepository.create(args);
             return await productRepository.save(product);
         },        
@@ -81,12 +79,12 @@ export const resolvers = {
         
                 let order = await queryRunner.manager.findOne(Order, {
                     where: { user: { user_id: args.user_id } },
-                    relations: ["items", "items.product", "user"] // Ensure user is loaded
+                    relations: ["items", "items.product", "user"]
                 });
         
                 if (!order) {
                     order = new Order();
-                    order.user = user; // Explicitly set user
+                    order.user = user; 
                     order.items = [];
                 }
         
@@ -115,10 +113,8 @@ export const resolvers = {
                     0
                 );
         
-                // Save order and updated order items
                 await queryRunner.manager.save(order);
         
-                // **Force load the user again before returning to avoid null issue**
                 const savedOrder = await queryRunner.manager.findOne(Order, {
                     where: { order_id: order.order_id },
                     relations: ["user", "items", "items.product"]
@@ -156,7 +152,6 @@ export const resolvers = {
                 orderProduct.product = product;
                 orderProduct.quantity = args.quantity;
             
-                // Calculate total
                 const total = product.price * args.quantity;
 
                 const order = new Order();
@@ -182,11 +177,9 @@ export const resolvers = {
                 const user = await queryRunner.manager.findOne(User, {where: { user_id: args.user_id }});
                 if (!user) throw new Error("User not found");
         
-                // Step 1: Find orders related to the user
                 const orders = await queryRunner.manager.find(Order, { where: { user: { user_id: args.user_id } } });
         
                 if (orders.length > 0) {
-                    // Step 2: Delete all order_product entries related to the user's orders
                     await queryRunner.manager
                     .createQueryBuilder()
                     .delete()
@@ -194,12 +187,9 @@ export const resolvers = {
                     .where("order_id IN (SELECT order_id FROM \"order\" WHERE user_id = :userId)", { userId: args.user_id })
                     .execute();
                 
-        
-                    // Step 3: Delete the orders
                     await queryRunner.manager.delete(Order, { user: { user_id: args.user_id } });
                 }
         
-                // Step 4: Delete the user
                 await queryRunner.manager.delete(User, { user_id: args.user_id });
         
                 await queryRunner.commitTransaction();
