@@ -52,10 +52,19 @@ export const resolvers = {
             const user = AppDataSource.getRepository(User).create(args);
             return await AppDataSource.getRepository(User).save(user)
         },
-        createProduct: async(_:any,args:any) =>{
-            const product = AppDataSource.getRepository(Product).create(args);
-            return await AppDataSource.getRepository(Product).save(product);
-        },
+        createProduct: async (_: any, args: { product_name: string; description: string; price: number }) => {
+            const productRepository = AppDataSource.getRepository(Product);
+        
+            // check if a product with the same name already exists
+            const existingProduct = await productRepository.findOneBy({ product_name: args.product_name });
+            if (existingProduct) {
+                throw new Error(`Product with name "${args.product_name}" already exists.`);
+            }
+        
+            // Create new product
+            const product = productRepository.create(args);
+            return await productRepository.save(product);
+        },        
         createOrder: async (_: any, args: {
             user_id: string;
             items: { product_id: string; quantity: number }[];
@@ -168,15 +177,33 @@ export const resolvers = {
             const queryRunner = AppDataSource.createQueryRunner();
             await queryRunner.connect();
             await queryRunner.startTransaction();
-
+        
             try {
                 const user = await queryRunner.manager.findOne(User, {where: { user_id: args.user_id }});
                 if (!user) throw new Error("User not found");
-
-                await queryRunner.manager.delete(Order, { user: { user_id: args.user_id } });
+        
+                // Step 1: Find orders related to the user
+                const orders = await queryRunner.manager.find(Order, { where: { user: { user_id: args.user_id } } });
+        
+                if (orders.length > 0) {
+                    // Step 2: Delete all order_product entries related to the user's orders
+                    await queryRunner.manager
+                    .createQueryBuilder()
+                    .delete()
+                    .from(OrderProduct)
+                    .where("order_id IN (SELECT order_id FROM \"order\" WHERE user_id = :userId)", { userId: args.user_id })
+                    .execute();
+                
+        
+                    // Step 3: Delete the orders
+                    await queryRunner.manager.delete(Order, { user: { user_id: args.user_id } });
+                }
+        
+                // Step 4: Delete the user
                 await queryRunner.manager.delete(User, { user_id: args.user_id });
+        
                 await queryRunner.commitTransaction();
-                return "User and orders deleted";
+                return "User and related orders deleted";
             } catch (error) {
                 await queryRunner.rollbackTransaction();
                 throw new Error(`Failed to delete: ${error.message}`);
@@ -184,30 +211,5 @@ export const resolvers = {
                 await queryRunner.release();
             }
         }
-    },
-        Order: {
-            items: async (parent: Order) => {
-                // If items are not loaded, fetch them
-                if (!parent.items) {
-                    const order = await AppDataSource.getRepository(Order).findOne({
-                        where: { order_id: parent.order_id },
-                        relations: ["items", "items.product"]
-                    });
-                    return order?.items || [];
-                }
-                return parent.items;
-            }
-        },
-    
-        OrderItem: {
-            product: async (parent: OrderProduct) => {
-                // If product is not loaded, fetch it
-                if (!parent.product) {
-                    return await AppDataSource.getRepository(Product).findOneBy({
-                        product_id: parent.product.product_id
-                    });
-                }
-                return parent.product;
-            }
-        }
+    }        
 };
